@@ -13,6 +13,8 @@ export default function ProjectDetail() {
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [listingLoading, setListingLoading] = useState(false);
+  const [copiedField, setCopiedField] = useState('');
 
   useEffect(() => {
     load();
@@ -136,6 +138,46 @@ export default function ProjectDetail() {
     setEditingId(null);
   }
 
+  async function handleGenerateListing() {
+    setListingLoading(true);
+    setError('');
+    try {
+      const chapterSummaries = chapters.map((c) => `${c.title}: ${c.summary}`).join('\n');
+
+      const res = await fetch('/api/generate-listing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: project.title,
+          genre: project.genre,
+          bookType: project.book_type,
+          concept: project.concept,
+          chapterSummaries,
+        }),
+      });
+      if (!res.ok) throw new Error('Erreur lors de la génération de la fiche produit.');
+      const data = await res.json();
+
+      const { error: updateErr } = await supabase
+        .from('book_projects')
+        .update({ listing: data })
+        .eq('id', id);
+      if (updateErr) throw updateErr;
+
+      setProject({ ...project, listing: data });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setListingLoading(false);
+    }
+  }
+
+  function copyToClipboard(text, field) {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(''), 1500);
+  }
+
   async function handleExport() {
     setExporting(true);
     try {
@@ -185,6 +227,68 @@ export default function ProjectDetail() {
           <button onClick={handleGeneratePlan} disabled={planLoading}>
             {planLoading ? 'Génération du plan…' : 'Générer le plan de chapitres'}
           </button>
+        </div>
+      )}
+
+      {allDrafted && (
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0 }}>Fiche produit Amazon</h3>
+            <button
+              className="secondary"
+              onClick={handleGenerateListing}
+              disabled={listingLoading}
+            >
+              {listingLoading
+                ? 'Génération…'
+                : project.listing
+                ? 'Régénérer'
+                : 'Générer la fiche produit'}
+            </button>
+          </div>
+
+          {project.listing && (
+            <div style={{ marginTop: 16 }}>
+              <label style={{ marginTop: 0 }}>Description longue</label>
+              <p style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.6 }}>
+                {project.listing.description}
+              </p>
+              <button
+                className="secondary"
+                onClick={() => copyToClipboard(project.listing.description, 'description')}
+              >
+                {copiedField === 'description' ? 'Copié !' : 'Copier'}
+              </button>
+
+              <label>Description courte / 4e de couverture</label>
+              <p style={{ fontSize: 14, lineHeight: 1.6 }}>{project.listing.short_description}</p>
+              <button
+                className="secondary"
+                onClick={() => copyToClipboard(project.listing.short_description, 'short')}
+              >
+                {copiedField === 'short' ? 'Copié !' : 'Copier'}
+              </button>
+
+              <label>Sous-titre suggéré</label>
+              <p style={{ fontSize: 14 }}>{project.listing.subtitle_suggestion}</p>
+
+              <label>Catégories Amazon suggérées</label>
+              <ul style={{ fontSize: 14, color: '#c9cbd1', paddingLeft: 20 }}>
+                {(project.listing.categories || []).map((c, i) => (
+                  <li key={i}>{c}</li>
+                ))}
+              </ul>
+
+              <label>Mots-clés backend (7 slots KDP)</label>
+              <p style={{ fontSize: 14 }}>{(project.listing.keywords || []).join(', ')}</p>
+              <button
+                className="secondary"
+                onClick={() => copyToClipboard((project.listing.keywords || []).join(', '), 'keywords')}
+              >
+                {copiedField === 'keywords' ? 'Copié !' : 'Copier'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

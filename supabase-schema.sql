@@ -8,6 +8,7 @@ create table if not exists book_projects (
   book_type text not null default 'roman', -- 'roman' | 'carnet'
   status text not null default 'concept', -- 'concept' | 'plan' | 'writing' | 'done'
   concept jsonb,
+  listing jsonb,
   created_at timestamptz not null default now()
 );
 
