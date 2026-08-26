@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { exportProjectToDocx } from '../lib/exportDocx';
+import { exportProjectToPdf } from '../lib/exportPdf';
 import CarnetConfig from '../components/CarnetConfig.jsx';
 
 export default function ProjectDetail() {
@@ -14,6 +15,7 @@ export default function ProjectDetail() {
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [listingLoading, setListingLoading] = useState(false);
   const [copiedField, setCopiedField] = useState('');
   const [collection, setCollection] = useState(null);
@@ -242,6 +244,17 @@ export default function ProjectDetail() {
     }
   }
 
+  async function handleExportPdf() {
+    setExportingPdf(true);
+    try {
+      await exportProjectToPdf(project, chapters);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
   if (!project) return <p className="spinner-text">Chargement…</p>;
 
   const isCarnet = project.book_type === 'carnet';
@@ -259,9 +272,14 @@ export default function ProjectDetail() {
           </p>
         </div>
         {allDrafted && (
-          <button onClick={handleExport} disabled={exporting}>
-            {exporting ? 'Export…' : 'Exporter en DOCX'}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="secondary" onClick={handleExportPdf} disabled={exportingPdf}>
+              {exportingPdf ? 'Export…' : 'Exporter en PDF'}
+            </button>
+            <button onClick={handleExport} disabled={exporting}>
+              {exporting ? 'Export…' : 'Exporter en DOCX'}
+            </button>
+          </div>
         )}
       </div>
 
