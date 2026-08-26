@@ -15,6 +15,8 @@ export default function ProjectDetail() {
   const [exporting, setExporting] = useState(false);
   const [listingLoading, setListingLoading] = useState(false);
   const [copiedField, setCopiedField] = useState('');
+  const [collection, setCollection] = useState(null);
+  const [styleLoading, setStyleLoading] = useState(false);
 
   useEffect(() => {
     load();
@@ -28,6 +30,15 @@ export default function ProjectDetail() {
       .single();
     if (projErr) return setError(projErr.message);
     setProject(proj);
+
+    if (proj.collection_id) {
+      const { data: col } = await supabase
+        .from('collections')
+        .select('*')
+        .eq('id', proj.collection_id)
+        .single();
+      setCollection(col || null);
+    }
 
     const { data: chaps, error: chapErr } = await supabase
       .from('chapters')
@@ -50,6 +61,7 @@ export default function ProjectDetail() {
           genre: project.genre,
           bookType: project.book_type,
           concept: project.concept,
+          styleNotes: collection?.style_notes || '',
         }),
       });
       if (!res.ok) throw new Error('Erreur lors de la génération du plan.');
@@ -100,6 +112,7 @@ export default function ProjectDetail() {
           chapterTitle: chapter.title,
           chapterSummary: chapter.summary,
           previousSummary,
+          styleNotes: collection?.style_notes || '',
         }),
       });
       if (!res.ok) throw new Error('Erreur lors de la génération du chapitre.');
@@ -136,6 +149,43 @@ export default function ProjectDetail() {
       prev.map((c) => (c.id === chapter.id ? { ...c, content: editText, status: 'edited' } : c))
     );
     setEditingId(null);
+  }
+
+  async function handleExtractStyle() {
+    setStyleLoading(true);
+    setError('');
+    try {
+      const chapterExcerpts = chapters
+        .filter((c) => c.content)
+        .map((c) => c.content.slice(0, 600))
+        .join('\n\n---\n\n');
+
+      const res = await fetch('/api/generate-style', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookTitle: project.title,
+          genre: project.genre,
+          chapterExcerpts,
+          existingStyleNotes: collection?.style_notes || '',
+        }),
+      });
+      if (!res.ok) throw new Error("Erreur lors de l'extraction du style.");
+      const data = await res.json();
+
+      if (collection) {
+        const { error: updateErr } = await supabase
+          .from('collections')
+          .update({ style_notes: data.style_notes })
+          .eq('id', collection.id);
+        if (updateErr) throw updateErr;
+        setCollection({ ...collection, style_notes: data.style_notes });
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setStyleLoading(false);
+    }
   }
 
   async function handleGenerateListing() {
@@ -218,6 +268,33 @@ export default function ProjectDetail() {
           <p style={{ color: '#9aa0ac', fontSize: 13 }}>
             <strong>Public :</strong> {project.concept.target_audience}
           </p>
+        </div>
+      )}
+
+      {collection && (
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0 }}>Collection : {collection.name}</h3>
+            {allDrafted && (
+              <button className="secondary" onClick={handleExtractStyle} disabled={styleLoading}>
+                {styleLoading
+                  ? 'Analyse…'
+                  : collection.style_notes
+                  ? 'Mettre à jour le style'
+                  : 'Extraire le style de ce livre'}
+              </button>
+            )}
+          </div>
+          {collection.style_notes ? (
+            <p style={{ fontSize: 13, color: '#9aa0ac', marginTop: 12, whiteSpace: 'pre-wrap' }}>
+              {collection.style_notes}
+            </p>
+          ) : (
+            <p style={{ fontSize: 13, color: '#9aa0ac', marginTop: 12 }}>
+              Pas encore de profil de style pour cette collection. Termine ce livre puis clique sur
+              "Extraire le style" pour que les prochains livres de cette collection gardent la même voix.
+            </p>
+          )}
         </div>
       )}
 

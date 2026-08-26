@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { title, genre, bookType, concept } = req.body;
+    const { title, genre, bookType, concept, styleNotes } = req.body;
 
     const system = `Tu es un éditeur et structurologue de livres. Tu réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises markdown.`;
 
@@ -21,6 +21,7 @@ Titre: ${title}
 Genre: ${genre}
 Pitch: ${concept?.pitch || ''}
 Public cible: ${concept?.target_audience || ''}
+${styleNotes ? `Style à respecter (cohérence avec la collection):\n${styleNotes}\n` : ''}
 ${typeInstruction}
 
 Génère entre 8 et 14 chapitres/sections. Réponds avec un JSON de cette forme exacte:

@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { bookTitle, genre, bookType, chapterTitle, chapterSummary, previousSummary } = req.body;
+    const { bookTitle, genre, bookType, chapterTitle, chapterSummary, previousSummary, styleNotes } = req.body;
 
     const system = `Tu es un auteur professionnel écrivant en français pour le marché Amazon KDP. Tu écris un texte fluide, engageant, sans jamais mentionner que le contenu est généré par IA. Tu réponds uniquement avec le texte du chapitre, sans titre répété, sans commentaire méta, sans balises markdown.`;
 
@@ -16,7 +16,7 @@ export default async function handler(req, res) {
         : 'Rédige ce chapitre avec un vrai style narratif, des dialogues si pertinent, et une cohérence avec ce qui précède.';
 
     const prompt = `Livre: "${bookTitle}" (genre: ${genre})
-
+${styleNotes ? `\nProfil de style à respecter impérativement (cohérence avec les autres livres de la collection):\n${styleNotes}\n` : ''}
 ${previousSummary ? `Résumé de ce qui précède:\n${previousSummary}\n\n` : ''}Chapitre à écrire: "${chapterTitle}"
 Ce qui doit s'y passer: ${chapterSummary}
 

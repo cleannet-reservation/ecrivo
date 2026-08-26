@@ -1,8 +1,17 @@
 -- À exécuter dans Supabase > SQL Editor
 
+create table if not exists collections (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  style_notes text,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists book_projects (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
+  collection_id uuid references collections(id) on delete set null,
   title text,
   genre text,
   book_type text not null default 'roman', -- 'roman' | 'carnet'
@@ -27,6 +36,12 @@ create table if not exists chapters (
 -- Row Level Security : chaque utilisateur ne voit que ses propres projets
 alter table book_projects enable row level security;
 alter table chapters enable row level security;
+alter table collections enable row level security;
+
+create policy "Users can manage their own collections"
+  on collections for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 create policy "Users can manage their own projects"
   on book_projects for all
@@ -52,3 +67,4 @@ create policy "Users can manage chapters of their own projects"
 
 create index if not exists idx_chapters_project_id on chapters(project_id);
 create index if not exists idx_book_projects_user_id on book_projects(user_id);
+create index if not exists idx_collections_user_id on collections(user_id);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -11,6 +11,26 @@ export default function NewProject() {
   const [error, setError] = useState('');
   const [ideas, setIdeas] = useState(null);
   const [creating, setCreating] = useState(false);
+
+  const [collections, setCollections] = useState([]);
+  const [collectionId, setCollectionId] = useState('');
+  const [newCollectionName, setNewCollectionName] = useState('');
+
+  useEffect(() => {
+    loadCollections();
+  }, []);
+
+  async function loadCollections() {
+    const { data } = await supabase
+      .from('collections')
+      .select('*')
+      .order('created_at', { ascending: false });
+    setCollections(data || []);
+  }
+
+  function getSelectedCollection() {
+    return collections.find((c) => c.id === collectionId);
+  }
 
   async function handleGenerate(e) {
     e.preventDefault();
@@ -38,10 +58,24 @@ export default function NewProject() {
     setError('');
     try {
       const { data: userData } = await supabase.auth.getUser();
+
+      let finalCollectionId = collectionId || null;
+
+      if (!finalCollectionId && newCollectionName.trim()) {
+        const { data: newCol, error: colErr } = await supabase
+          .from('collections')
+          .insert({ user_id: userData.user.id, name: newCollectionName.trim() })
+          .select()
+          .single();
+        if (colErr) throw colErr;
+        finalCollectionId = newCol.id;
+      }
+
       const { data, error } = await supabase
         .from('book_projects')
         .insert({
           user_id: userData.user.id,
+          collection_id: finalCollectionId,
           title: idea.title,
           genre,
           book_type: bookType,
@@ -80,6 +114,37 @@ export default function NewProject() {
             placeholder="Décris librement ce que tu as en tête, même vague."
             required
           />
+
+          <label>Collection (pour garder un style cohérent entre livres)</label>
+          <select
+            value={collectionId}
+            onChange={(e) => {
+              setCollectionId(e.target.value);
+              if (e.target.value) setNewCollectionName('');
+            }}
+          >
+            <option value="">Aucune collection</option>
+            {collections.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+
+          {!collectionId && (
+            <>
+              <label>Ou crée une nouvelle collection (optionnel)</label>
+              <input
+                value={newCollectionName}
+                onChange={(e) => setNewCollectionName(e.target.value)}
+                placeholder="ex: Thrillers de l'été"
+              />
+            </>
+          )}
+
+          {collectionId && getSelectedCollection()?.style_notes && (
+            <p style={{ fontSize: 12, color: '#9aa0ac', marginTop: 8 }}>
+              Un profil de style existe pour cette collection — il sera utilisé pour garder la cohérence.
+            </p>
+          )}
 
           {error && <div className="error-box">{error}</div>}
 
