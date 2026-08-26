@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { exportProjectToDocx } from '../lib/exportDocx';
+import CarnetConfig from '../components/CarnetConfig.jsx';
 
 export default function ProjectDetail() {
   const { id } = useParams();
@@ -192,7 +193,9 @@ export default function ProjectDetail() {
     setListingLoading(true);
     setError('');
     try {
-      const chapterSummaries = chapters.map((c) => `${c.title}: ${c.summary}`).join('\n');
+      const chapterSummaries = isCarnet
+        ? `Carnet avec ${project.carnet_config?.num_pages || ''} pages. Intro: ${project.carnet_config?.intro_text || ''}. Exemples de prompts: ${(project.carnet_config?.prompts || []).slice(0, 5).join(' / ')}`
+        : chapters.map((c) => `${c.title}: ${c.summary}`).join('\n');
 
       const res = await fetch('/api/generate-listing', {
         method: 'POST',
@@ -241,7 +244,10 @@ export default function ProjectDetail() {
 
   if (!project) return <p className="spinner-text">Chargement…</p>;
 
-  const allDrafted = chapters.length > 0 && chapters.every((c) => c.content);
+  const isCarnet = project.book_type === 'carnet';
+  const allDrafted = !isCarnet && chapters.length > 0 && chapters.every((c) => c.content);
+  const carnetReady = isCarnet && project.carnet_config?.prompts?.length > 0;
+  const readyForListing = allDrafted || carnetReady;
 
   return (
     <div>
@@ -298,16 +304,20 @@ export default function ProjectDetail() {
         </div>
       )}
 
-      {chapters.length === 0 && (
-        <div className="card">
-          <p style={{ color: '#9aa0ac' }}>Aucun plan généré pour l'instant.</p>
-          <button onClick={handleGeneratePlan} disabled={planLoading}>
-            {planLoading ? 'Génération du plan…' : 'Générer le plan de chapitres'}
-          </button>
-        </div>
+      {isCarnet ? (
+        <CarnetConfig project={project} onUpdate={setProject} />
+      ) : (
+        chapters.length === 0 && (
+          <div className="card">
+            <p style={{ color: '#9aa0ac' }}>Aucun plan généré pour l'instant.</p>
+            <button onClick={handleGeneratePlan} disabled={planLoading}>
+              {planLoading ? 'Génération du plan…' : 'Générer le plan de chapitres'}
+            </button>
+          </div>
+        )
       )}
 
-      {allDrafted && (
+      {readyForListing && (
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ margin: 0 }}>Fiche produit Amazon</h3>
@@ -369,7 +379,7 @@ export default function ProjectDetail() {
         </div>
       )}
 
-      {chapters.map((chapter) => (
+      {!isCarnet && chapters.map((chapter) => (
         <div key={chapter.id} className="card">
           <div className="chapter-row" style={{ background: 'transparent', border: 'none', padding: 0, marginBottom: 8 }}>
             <div>

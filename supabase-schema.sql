@@ -18,6 +18,7 @@ create table if not exists book_projects (
   status text not null default 'concept', -- 'concept' | 'plan' | 'writing' | 'done'
   concept jsonb,
   listing jsonb,
+  carnet_config jsonb,
   created_at timestamptz not null default now()
 );
 
