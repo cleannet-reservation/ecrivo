@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { exportCarnetToDocx } from '../lib/exportCarnetDocx';
+import { exportCarnetToPdf } from '../lib/exportCarnetPdf';
 
 const TEMPLATES = [
   { value: 'lined', label: 'Pages lignées (notes libres)' },
@@ -19,6 +20,7 @@ export default function CarnetConfig({ project, onUpdate }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const hasContent = config.prompts && config.prompts.length > 0;
 
@@ -63,6 +65,17 @@ export default function CarnetConfig({ project, onUpdate }) {
     }
   }
 
+  async function handleExportPdf() {
+    setExportingPdf(true);
+    try {
+      await exportCarnetToPdf(project);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
   async function handleExport() {
     setExporting(true);
     try {
@@ -79,9 +92,14 @@ export default function CarnetConfig({ project, onUpdate }) {
       <div className="top-bar" style={{ marginBottom: 8 }}>
         <h3 style={{ margin: 0 }}>Configuration du carnet</h3>
         {hasContent && (
-          <button onClick={handleExport} disabled={exporting}>
-            {exporting ? 'Export…' : 'Exporter en DOCX'}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="secondary" onClick={handleExportPdf} disabled={exportingPdf}>
+              {exportingPdf ? 'Export…' : 'Exporter en PDF'}
+            </button>
+            <button onClick={handleExport} disabled={exporting}>
+              {exporting ? 'Export…' : 'Exporter en DOCX'}
+            </button>
+          </div>
         )}
       </div>
 
