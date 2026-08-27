@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { exportProjectToDocx } from '../lib/exportDocx';
 import { exportProjectToPdf } from '../lib/exportPdf';
@@ -7,6 +7,7 @@ import CarnetConfig from '../components/CarnetConfig.jsx';
 
 export default function ProjectDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [project, setProject] = useState(null);
   const [chapters, setChapters] = useState([]);
   const [error, setError] = useState('');
@@ -20,6 +21,8 @@ export default function ProjectDetail() {
   const [copiedField, setCopiedField] = useState('');
   const [collection, setCollection] = useState(null);
   const [styleLoading, setStyleLoading] = useState(false);
+  const [sequelLoading, setSequelLoading] = useState(false);
+  const [originalBook, setOriginalBook] = useState(null);
 
   useEffect(() => {
     load();
@@ -41,6 +44,15 @@ export default function ProjectDetail() {
         .eq('id', proj.collection_id)
         .single();
       setCollection(col || null);
+    }
+
+    if (proj.sequel_of) {
+      const { data: orig } = await supabase
+        .from('book_projects')
+        .select('id, title')
+        .eq('id', proj.sequel_of)
+        .single();
+      setOriginalBook(orig || null);
     }
 
     const { data: chaps, error: chapErr } = await supabase
@@ -65,6 +77,7 @@ export default function ProjectDetail() {
           bookType: project.book_type,
           concept: project.concept,
           styleNotes: collection?.style_notes || '',
+          continuityNotes: project.continuity_notes || '',
         }),
       });
       if (!res.ok) throw new Error('Erreur lors de la génération du plan.');
@@ -116,6 +129,7 @@ export default function ProjectDetail() {
           chapterSummary: chapter.summary,
           previousSummary,
           styleNotes: collection?.style_notes || '',
+          continuityNotes: project.continuity_notes || '',
         }),
       });
       if (!res.ok) throw new Error('Erreur lors de la génération du chapitre.');
@@ -188,6 +202,72 @@ export default function ProjectDetail() {
       setError(err.message);
     } finally {
       setStyleLoading(false);
+    }
+  }
+
+  async function handleCreateSequel() {
+    setSequelLoading(true);
+    setError('');
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+
+      const chapterContents = chapters
+        .filter((c) => c.content)
+        .map((c) => `## ${c.title}\n${c.content}`)
+        .join('\n\n')
+        .slice(0, 12000); // on garde une taille raisonnable pour le prompt
+
+      const res = await fetch('/api/generate-continuity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookTitle: project.title,
+          genre: project.genre,
+          chapterContents,
+        }),
+      });
+      if (!res.ok) throw new Error('Erreur lors de l\'analyse du livre pour la suite.');
+      const data = await res.json();
+
+      // S'assure que le livre est rattaché à une collection, pour que le style suive aussi
+      let finalCollectionId = project.collection_id;
+      if (!finalCollectionId) {
+        const { data: newCol, error: colErr } = await supabase
+          .from('collections')
+          .insert({ user_id: userData.user.id, name: `${project.title} (série)` })
+          .select()
+          .single();
+        if (colErr) throw colErr;
+        finalCollectionId = newCol.id;
+        await supabase.from('book_projects').update({ collection_id: finalCollectionId }).eq('id', project.id);
+      }
+
+      const { data: newProject, error: insertErr } = await supabase
+        .from('book_projects')
+        .insert({
+          user_id: userData.user.id,
+          collection_id: finalCollectionId,
+          title: data.suggested_title || `${project.title} — Tome 2`,
+          genre: project.genre,
+          book_type: 'roman',
+          status: 'concept',
+          concept: {
+            pitch: data.next_book_pitch,
+            target_audience: project.concept?.target_audience || '',
+            keywords: project.concept?.keywords || [],
+          },
+          continuity_notes: data.continuity_notes,
+          sequel_of: project.id,
+        })
+        .select()
+        .single();
+      if (insertErr) throw insertErr;
+
+      navigate(`/project/${newProject.id}`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSequelLoading(false);
     }
   }
 
@@ -270,9 +350,17 @@ export default function ProjectDetail() {
           <p style={{ color: '#9aa0ac', margin: '4px 0 0 0', fontSize: 13 }}>
             {project.genre} · {project.book_type === 'carnet' ? 'Carnet' : 'Roman / texte court'}
           </p>
+          {originalBook && (
+            <p style={{ color: '#9aa0ac', margin: '4px 0 0 0', fontSize: 13 }}>
+              Suite de <Link to={`/project/${originalBook.id}`} style={{ color: '#d4a95a' }}>{originalBook.title}</Link>
+            </p>
+          )}
         </div>
         {allDrafted && (
           <div style={{ display: 'flex', gap: 8 }}>
+            <button className="secondary" onClick={handleCreateSequel} disabled={sequelLoading}>
+              {sequelLoading ? 'Préparation…' : 'Créer une suite'}
+            </button>
             <button className="secondary" onClick={handleExportPdf} disabled={exportingPdf}>
               {exportingPdf ? 'Export…' : 'Exporter en PDF'}
             </button>
@@ -284,6 +372,15 @@ export default function ProjectDetail() {
       </div>
 
       {error && <div className="error-box">{error}</div>}
+
+      {project.continuity_notes && (
+        <div className="card">
+          <h3>Continuité avec le tome précédent</h3>
+          <p style={{ fontSize: 13, color: '#9aa0ac', whiteSpace: 'pre-wrap' }}>
+            {project.continuity_notes}
+          </p>
+        </div>
+      )}
 
       {project.concept && (
         <div className="card">

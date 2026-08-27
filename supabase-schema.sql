@@ -19,6 +19,8 @@ create table if not exists book_projects (
   concept jsonb,
   listing jsonb,
   carnet_config jsonb,
+  continuity_notes text,
+  sequel_of uuid references book_projects(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
