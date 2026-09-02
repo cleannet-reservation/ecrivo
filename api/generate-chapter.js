@@ -6,14 +6,18 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { bookTitle, genre, bookType, chapterTitle, chapterSummary, previousSummary, styleNotes, continuityNotes } = req.body;
+    const { bookTitle, genre, bookType, chapterTitle, chapterSummary, previousSummary, styleNotes, continuityNotes, targetWords } = req.body;
 
     const system = `Tu es un auteur professionnel écrivant en français pour le marché Amazon KDP. Tu écris un texte fluide, engageant, sans jamais mentionner que le contenu est généré par IA. Tu réponds uniquement avec le texte du chapitre, sans titre répété, sans commentaire méta, sans balises markdown.`;
 
     const typeInstruction =
       bookType === 'carnet'
         ? 'Rédige le contenu de cette section de carnet : inclut des prompts d\'écriture concrets, des espaces de réflexion, un ton chaleureux et motivant.'
-        : 'Rédige ce chapitre avec un vrai style narratif, des dialogues si pertinent, et une cohérence avec ce qui précède.';
+        : 'Rédige ce chapitre avec un vrai style narratif, des dialogues si pertinent, et une cohérence avec ce qui précède. Développe les scènes en profondeur (descriptions, ressentis des personnages, dialogues étoffés) plutôt que de résumer les événements — c\'est essentiel pour atteindre la longueur cible.';
+
+    const lengthInstruction = targetWords
+      ? `Longueur cible: environ ${targetWords} mots (marge acceptable de ±15%). Ne t'arrête pas en dessous.`
+      : `Longueur cible: ${bookType === 'carnet' ? '800 à 1500' : '1600 à 2200'} mots. Ne t'arrête pas en dessous de cette fourchette.`;
 
     const prompt = `Livre: "${bookTitle}" (genre: ${genre})
 ${styleNotes ? `\nProfil de style à respecter impérativement (cohérence avec les autres livres de la collection):\n${styleNotes}\n` : ''}${continuityNotes ? `\nCe livre est une SUITE. Continuité à respecter impérativement:\n${continuityNotes}\n` : ''}
@@ -22,9 +26,9 @@ Ce qui doit s'y passer: ${chapterSummary}
 
 ${typeInstruction}
 
-Longueur cible: 800 à 1500 mots.`;
+${lengthInstruction}`;
 
-    const content = await callClaude({ system, prompt, maxTokens: 4096 });
+    const content = await callClaude({ system, prompt, maxTokens: 6144 });
     return res.status(200).json({ content: content.trim() });
   } catch (err) {
     console.error(err);

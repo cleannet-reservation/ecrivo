@@ -16,6 +16,9 @@ export default function NewProject() {
   const [collectionId, setCollectionId] = useState('');
   const [newCollectionName, setNewCollectionName] = useState('');
 
+  const [targetPages, setTargetPages] = useState(90);
+  const [targetChapters, setTargetChapters] = useState(18);
+
   useEffect(() => {
     loadCollections();
   }, []);
@@ -81,6 +84,8 @@ export default function NewProject() {
           book_type: bookType,
           status: 'concept',
           concept: idea,
+          target_pages: bookType === 'roman' ? Number(targetPages) : null,
+          target_chapters: bookType === 'roman' ? Number(targetChapters) : null,
         })
         .select()
         .single();
@@ -114,6 +119,36 @@ export default function NewProject() {
             placeholder="Décris librement ce que tu as en tête, même vague."
             required
           />
+
+          {bookType === 'roman' && (
+            <>
+              <label>Nombre de pages souhaité</label>
+              <input
+                type="number"
+                min={20}
+                max={600}
+                value={targetPages}
+                onChange={(e) => setTargetPages(e.target.value)}
+              />
+              <p style={{ fontSize: 12, color: '#9aa0ac', marginTop: 4 }}>
+                Amazon KDP exige un minimum d'environ 79 pages pour activer la 4e de couverture en
+                impression papier — 90 est une valeur sûre avec marge.
+              </p>
+
+              <label>Nombre de chapitres souhaité</label>
+              <input
+                type="number"
+                min={4}
+                max={60}
+                value={targetChapters}
+                onChange={(e) => setTargetChapters(e.target.value)}
+              />
+              <p style={{ fontSize: 12, color: '#9aa0ac', marginTop: 4 }}>
+                Chaque chapitre visera environ {Math.round((targetPages * 270) / Math.max(targetChapters, 1))} mots
+                pour atteindre la longueur totale souhaitée.
+              </p>
+            </>
+          )}
 
           <label>Collection (pour garder un style cohérent entre livres)</label>
           <select

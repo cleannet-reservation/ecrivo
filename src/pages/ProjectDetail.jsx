@@ -23,6 +23,9 @@ export default function ProjectDetail() {
   const [styleLoading, setStyleLoading] = useState(false);
   const [sequelLoading, setSequelLoading] = useState(false);
   const [originalBook, setOriginalBook] = useState(null);
+  const [addingChapter, setAddingChapter] = useState(false);
+  const [autoCompleting, setAutoCompleting] = useState(false);
+  const [autoStatus, setAutoStatus] = useState('');
 
   useEffect(() => {
     load();
@@ -78,6 +81,7 @@ export default function ProjectDetail() {
           concept: project.concept,
           styleNotes: collection?.style_notes || '',
           continuityNotes: project.continuity_notes || '',
+          numChapters: project.target_chapters || null,
         }),
       });
       if (!res.ok) throw new Error('Erreur lors de la génération du plan.');
@@ -109,45 +113,119 @@ export default function ProjectDetail() {
     }
   }
 
+  async function fetchChapterContent(chapter, chaptersContext) {
+    const previousSummary = chaptersContext
+      .filter((c) => c.order_index < chapter.order_index && c.content)
+      .map((c) => `${c.title}: ${c.content.slice(0, 400)}`)
+      .join('\n\n');
+
+    const targetWords =
+      project.target_pages && project.target_chapters
+        ? Math.round((project.target_pages * 270) / project.target_chapters)
+        : null;
+
+    const res = await fetch('/api/generate-chapter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bookTitle: project.title,
+        genre: project.genre,
+        bookType: project.book_type,
+        chapterTitle: chapter.title,
+        chapterSummary: chapter.summary,
+        previousSummary,
+        styleNotes: collection?.style_notes || '',
+        continuityNotes: project.continuity_notes || '',
+        targetWords,
+      }),
+    });
+    if (!res.ok) throw new Error('Erreur lors de la génération du chapitre.');
+    const data = await res.json();
+    return data.content;
+  }
+
   async function handleGenerateChapter(chapter) {
     setGenChapterId(chapter.id);
     setError('');
     try {
-      const previousSummary = chapters
-        .filter((c) => c.order_index < chapter.order_index && c.content)
-        .map((c) => `${c.title}: ${c.content.slice(0, 400)}`)
-        .join('\n\n');
-
-      const res = await fetch('/api/generate-chapter', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bookTitle: project.title,
-          genre: project.genre,
-          bookType: project.book_type,
-          chapterTitle: chapter.title,
-          chapterSummary: chapter.summary,
-          previousSummary,
-          styleNotes: collection?.style_notes || '',
-          continuityNotes: project.continuity_notes || '',
-        }),
-      });
-      if (!res.ok) throw new Error('Erreur lors de la génération du chapitre.');
-      const data = await res.json();
+      const content = await fetchChapterContent(chapter, chapters);
 
       const { error: updateErr } = await supabase
         .from('chapters')
-        .update({ content: data.content, status: 'drafted' })
+        .update({ content, status: 'drafted' })
         .eq('id', chapter.id);
       if (updateErr) throw updateErr;
 
       setChapters((prev) =>
-        prev.map((c) => (c.id === chapter.id ? { ...c, content: data.content, status: 'drafted' } : c))
+        prev.map((c) => (c.id === chapter.id ? { ...c, content, status: 'drafted' } : c))
       );
     } catch (err) {
       setError(err.message);
     } finally {
       setGenChapterId(null);
+    }
+  }
+
+  function wordsOf(chaptersArr) {
+    return chaptersArr.reduce((sum, c) => sum + (c.content ? c.content.trim().split(/\s+/).length : 0), 0);
+  }
+
+  async function handleAutoComplete() {
+    setAutoCompleting(true);
+    setError('');
+    try {
+      let localChapters = [...chapters];
+
+      // 1. Rédige les chapitres déjà planifiés mais pas encore écrits
+      for (const chapter of localChapters) {
+        if (!chapter.content) {
+          setAutoStatus(`Rédaction : ${chapter.title}…`);
+          const content = await fetchChapterContent(chapter, localChapters);
+          await supabase.from('chapters').update({ content, status: 'drafted' }).eq('id', chapter.id);
+          localChapters = localChapters.map((c) => (c.id === chapter.id ? { ...c, content, status: 'drafted' } : c));
+          setChapters(localChapters);
+        }
+      }
+
+      // 2. Ajoute des chapitres tant qu'on n'a pas une marge confortable au-dessus du minimum KDP (79 pages)
+      const TARGET_PAGES = project.target_pages || 90;
+      const MAX_EXTRA_CHAPTERS = 14;
+      let extraAdded = 0;
+
+      while (Math.round(wordsOf(localChapters) / 270) < TARGET_PAGES && extraAdded < MAX_EXTRA_CHAPTERS) {
+        const currentPages = Math.round(wordsOf(localChapters) / 270);
+        setAutoStatus(`${currentPages} pages estimées — ajout d'un chapitre supplémentaire…`);
+
+        const nextIndex = localChapters.length;
+        const { data: inserted, error: insertErr } = await supabase
+          .from('chapters')
+          .insert({
+            project_id: id,
+            order_index: nextIndex,
+            title: 'Chapitre supplémentaire',
+            summary:
+              "Prolonge naturellement l'histoire à partir de ce qui précède : approfondis un personnage secondaire, une scène de transition, ou développe un fil narratif déjà présent, sans rompre la cohérence avec la suite du livre.",
+            content: '',
+            status: 'planned',
+          })
+          .select()
+          .single();
+        if (insertErr) throw insertErr;
+        localChapters = [...localChapters, inserted];
+        setChapters(localChapters);
+
+        setAutoStatus(`Rédaction : ${inserted.title}…`);
+        const content = await fetchChapterContent(inserted, localChapters);
+        await supabase.from('chapters').update({ content, status: 'drafted' }).eq('id', inserted.id);
+        localChapters = localChapters.map((c) => (c.id === inserted.id ? { ...c, content, status: 'drafted' } : c));
+        setChapters(localChapters);
+        extraAdded++;
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAutoCompleting(false);
+      setAutoStatus('');
     }
   }
 
@@ -271,6 +349,33 @@ export default function ProjectDetail() {
     }
   }
 
+  async function handleAddChapter() {
+    setAddingChapter(true);
+    setError('');
+    try {
+      const nextIndex = chapters.length;
+      const { data: inserted, error: insertErr } = await supabase
+        .from('chapters')
+        .insert({
+          project_id: id,
+          order_index: nextIndex,
+          title: `Chapitre supplémentaire`,
+          summary:
+            "Prolonge naturellement l'histoire à partir de ce qui précède : approfondis un personnage secondaire, une scène de transition, ou développe un fil narratif déjà présent, sans rompre la cohérence avec la suite du livre.",
+          content: '',
+          status: 'planned',
+        })
+        .select()
+        .single();
+      if (insertErr) throw insertErr;
+      setChapters((prev) => [...prev, inserted]);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAddingChapter(false);
+    }
+  }
+
   async function handleGenerateListing() {
     setListingLoading(true);
     setError('');
@@ -341,6 +446,13 @@ export default function ProjectDetail() {
   const allDrafted = !isCarnet && chapters.length > 0 && chapters.every((c) => c.content);
   const carnetReady = isCarnet && project.carnet_config?.prompts?.length > 0;
   const readyForListing = allDrafted || carnetReady;
+
+  const totalWords = !isCarnet
+    ? chapters.reduce((sum, c) => sum + (c.content ? c.content.trim().split(/\s+/).length : 0), 0)
+    : 0;
+  const estimatedPages = Math.round(totalWords / 270); // ~270 mots/page en 6x9, format standard
+  const pageTarget = project.target_pages || 79;
+  const belowKdpMinimum = !isCarnet && chapters.length > 0 && estimatedPages < pageTarget;
 
   return (
     <div>
@@ -432,6 +544,38 @@ export default function ProjectDetail() {
         )
       )}
 
+      {!isCarnet && chapters.length > 0 && (
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ margin: 0 }}>Longueur du livre</h3>
+              <p style={{ fontSize: 13, color: '#9aa0ac', margin: '6px 0 0 0' }}>
+                ≈ {totalWords.toLocaleString('fr-FR')} mots · ≈ {estimatedPages} pages estimées (format 6×9)
+                {project.target_pages ? ` · cible : ${project.target_pages} pages` : ''}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="secondary" onClick={handleAddChapter} disabled={addingChapter || autoCompleting}>
+                {addingChapter ? 'Ajout…' : '+ Ajouter un chapitre'}
+              </button>
+              <button onClick={handleAutoComplete} disabled={autoCompleting || addingChapter}>
+                {autoCompleting ? 'Génération…' : `Compléter jusqu'à ${pageTarget}+ pages`}
+              </button>
+            </div>
+          </div>
+          {autoCompleting && (
+            <p style={{ fontSize: 13, color: '#d4a95a', marginTop: 12 }}>{autoStatus}</p>
+          )}
+          {!autoCompleting && belowKdpMinimum && (
+            <p style={{ fontSize: 13, color: '#e0b568', marginTop: 12 }}>
+              Amazon KDP exige un minimum d'environ 79 pages pour activer la 4e de couverture en
+              impression papier. Le bouton "Compléter jusqu'à {pageTarget}+ pages" rédige et ajoute
+              automatiquement des chapitres jusqu'à dépasser ta cible.
+            </p>
+          )}
+        </div>
+      )}
+
       {readyForListing && (
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -507,7 +651,7 @@ export default function ProjectDetail() {
           </div>
 
           {!chapter.content && (
-            <button onClick={() => handleGenerateChapter(chapter)} disabled={genChapterId === chapter.id}>
+            <button onClick={() => handleGenerateChapter(chapter)} disabled={genChapterId === chapter.id || autoCompleting}>
               {genChapterId === chapter.id ? 'Rédaction en cours…' : 'Générer ce chapitre'}
             </button>
           )}
@@ -519,7 +663,7 @@ export default function ProjectDetail() {
                 {chapter.content.length > 500 ? '…' : ''}
               </p>
               <button className="secondary" onClick={() => startEdit(chapter)}>Éditer</button>
-              <button className="secondary" onClick={() => handleGenerateChapter(chapter)} disabled={genChapterId === chapter.id}>
+              <button className="secondary" onClick={() => handleGenerateChapter(chapter)} disabled={genChapterId === chapter.id || autoCompleting}>
                 {genChapterId === chapter.id ? 'Régénération…' : 'Régénérer'}
               </button>
             </>
