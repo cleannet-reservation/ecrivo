@@ -84,7 +84,10 @@ export default function ProjectDetail() {
           numChapters: project.target_chapters || null,
         }),
       });
-      if (!res.ok) throw new Error('Erreur lors de la génération du plan.');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Erreur lors de la génération du plan.');
+      }
       const data = await res.json();
 
       const rows = data.chapters.map((c, i) => ({

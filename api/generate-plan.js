@@ -39,7 +39,11 @@ ${chapterCountInstruction} Réponds avec un JSON de cette forme exacte:
   ]
 }`;
 
-    const text = await callClaude({ system, prompt, maxTokens: 3072 });
+    const text = await callClaude({
+      system,
+      prompt,
+      maxTokens: numChapters ? Math.min(8000, 1800 + numChapters * 200) : 3072,
+    });
     const parsed = extractJson(text);
     return res.status(200).json(parsed);
   } catch (err) {
