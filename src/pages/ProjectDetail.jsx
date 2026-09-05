@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { exportProjectToDocx } from '../lib/exportDocx';
 import { exportProjectToPdf } from '../lib/exportPdf';
 import CarnetConfig from '../components/CarnetConfig.jsx';
+import CoverGenerator from '../components/CoverGenerator.jsx';
 
 export default function ProjectDetail() {
   const { id } = useParams();
@@ -506,6 +507,8 @@ export default function ProjectDetail() {
           </p>
         </div>
       )}
+
+      <CoverGenerator project={project} chapters={chapters} onUpdate={setProject} />
 
       {collection && (
         <div className="card">

@@ -23,6 +23,9 @@ create table if not exists book_projects (
   sequel_of uuid references book_projects(id) on delete set null,
   target_pages int,
   target_chapters int,
+  cover_image_url text,
+  cover_prompt text,
+  back_cover_text text,
   created_at timestamptz not null default now()
 );
 
