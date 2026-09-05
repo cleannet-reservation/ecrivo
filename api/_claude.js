@@ -41,5 +41,39 @@ export function extractJson(text) {
   const endBracket = text.lastIndexOf(']');
   const end = Math.max(endBrace, endBracket);
   const jsonStr = text.slice(start, end + 1);
-  return JSON.parse(jsonStr);
+
+  try {
+    return JSON.parse(jsonStr);
+  } catch (err) {
+    return repairAndParseJson(jsonStr);
+  }
+}
+
+// Répare un JSON coupé en plein milieu (réponse tronquée) ou légèrement malformé,
+// en le retronquant au dernier élément complet d'un tableau et en refermant proprement.
+function repairAndParseJson(jsonStr) {
+  const arrayStart = jsonStr.indexOf('[');
+  if (arrayStart === -1) {
+    throw new Error('Réponse JSON invalide et non réparable.');
+  }
+
+  const closers = [']}', ']', '}', ']}}'];
+
+  // On recule depuis la fin de la chaîne, à chaque accolade fermante rencontrée,
+  // on tente de refermer proprement le JSON à cet endroit et de le parser.
+  for (let i = jsonStr.length - 1; i >= arrayStart; i--) {
+    if (jsonStr[i] !== '}') continue;
+    const candidate = jsonStr.slice(0, i + 1);
+    for (const closer of closers) {
+      try {
+        return JSON.parse(candidate + closer);
+      } catch (e) {
+        // on essaie le prochain closer, ou la prochaine position
+      }
+    }
+  }
+
+  throw new Error(
+    'La réponse générée a été coupée avant la fin (souvent parce que trop de contenu a été demandé en une fois). Réessaie, ou réduis le nombre de chapitres demandé.'
+  );
 }
