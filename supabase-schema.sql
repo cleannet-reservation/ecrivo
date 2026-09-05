@@ -26,6 +26,8 @@ create table if not exists book_projects (
   cover_image_url text,
   cover_prompt text,
   back_cover_text text,
+  back_cover_image_url text,
+  back_cover_image_prompt text,
   created_at timestamptz not null default now()
 );
 

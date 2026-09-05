@@ -5,32 +5,57 @@ export default function CoverGenerator({ project, chapters = [], onUpdate }) {
   const [prompt, setPrompt] = useState(project.cover_prompt || '');
   const [promptLoading, setPromptLoading] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
+
+  const [backImagePrompt, setBackImagePrompt] = useState(project.back_cover_image_prompt || '');
+  const [backPromptLoading, setBackPromptLoading] = useState(false);
+  const [backImageLoading, setBackImageLoading] = useState(false);
+
   const [error, setError] = useState('');
 
   const [backCoverText, setBackCoverText] = useState(project.back_cover_text || '');
   const [backCoverLoading, setBackCoverLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  async function suggestPrompt(side) {
+    const res = await fetch('/api/generate-cover-prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: project.title,
+        genre: project.genre,
+        pitch: project.concept?.pitch || '',
+        bookType: project.book_type,
+        side,
+        frontCoverPrompt: side === 'back' ? prompt : undefined,
+      }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Erreur lors de la suggestion de prompt.');
+    }
+    const data = await res.json();
+    return data.prompt;
+  }
+
+  async function generateImage(promptText) {
+    const res = await fetch('/api/generate-cover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: promptText }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "Erreur lors de la génération de l'image.");
+    }
+    const data = await res.json();
+    return `data:image/png;base64,${data.image_base64}`;
+  }
+
   async function handleSuggestPrompt() {
     setPromptLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/generate-cover-prompt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: project.title,
-          genre: project.genre,
-          pitch: project.concept?.pitch || '',
-          bookType: project.book_type,
-        }),
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Erreur lors de la suggestion de prompt.');
-      }
-      const data = await res.json();
-      setPrompt(data.prompt);
+      setPrompt(await suggestPrompt('front'));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -46,29 +71,51 @@ export default function CoverGenerator({ project, chapters = [], onUpdate }) {
     setImageLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/generate-cover', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || "Erreur lors de la génération de l'image.");
-      }
-      const data = await res.json();
-      const dataUrl = `data:image/png;base64,${data.image_base64}`;
-
+      const dataUrl = await generateImage(prompt);
       const { error: updateErr } = await supabase
         .from('book_projects')
         .update({ cover_image_url: dataUrl, cover_prompt: prompt })
         .eq('id', project.id);
       if (updateErr) throw updateErr;
-
       onUpdate({ ...project, cover_image_url: dataUrl, cover_prompt: prompt });
     } catch (err) {
       setError(err.message);
     } finally {
       setImageLoading(false);
+    }
+  }
+
+  async function handleSuggestBackImagePrompt() {
+    setBackPromptLoading(true);
+    setError('');
+    try {
+      setBackImagePrompt(await suggestPrompt('back'));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBackPromptLoading(false);
+    }
+  }
+
+  async function handleGenerateBackImage() {
+    if (!backImagePrompt.trim()) {
+      setError('Écris ou génère un prompt avant de lancer la génération.');
+      return;
+    }
+    setBackImageLoading(true);
+    setError('');
+    try {
+      const dataUrl = await generateImage(backImagePrompt);
+      const { error: updateErr } = await supabase
+        .from('book_projects')
+        .update({ back_cover_image_url: dataUrl, back_cover_image_prompt: backImagePrompt })
+        .eq('id', project.id);
+      if (updateErr) throw updateErr;
+      onUpdate({ ...project, back_cover_image_url: dataUrl, back_cover_image_prompt: backImagePrompt });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBackImageLoading(false);
     }
   }
 
@@ -134,19 +181,19 @@ export default function CoverGenerator({ project, chapters = [], onUpdate }) {
 
   return (
     <div className="card">
-      <h3 style={{ marginTop: 0 }}>Couverture</h3>
+      <h3 style={{ marginTop: 0 }}>Couverture — Recto</h3>
 
       <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
         {project.cover_image_url && (
           <div style={{ flexShrink: 0 }}>
             <img
               src={project.cover_image_url}
-              alt="Couverture générée"
+              alt="Couverture recto générée"
               style={{ width: 180, borderRadius: 8, border: '1px solid #2a2f3a', display: 'block' }}
             />
             <a
               href={project.cover_image_url}
-              download={`${safeName}_couverture.png`}
+              download={`${safeName}_couverture_recto.png`}
               style={{ fontSize: 12, color: '#d4a95a', display: 'block', marginTop: 8, textAlign: 'center' }}
             >
               Télécharger
@@ -163,8 +210,6 @@ export default function CoverGenerator({ project, chapters = [], onUpdate }) {
             style={{ minHeight: 120 }}
           />
 
-          {error && <div className="error-box">{error}</div>}
-
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="secondary" onClick={handleSuggestPrompt} disabled={promptLoading}>
               {promptLoading ? 'Rédaction…' : 'Suggérer un prompt'}
@@ -177,10 +222,52 @@ export default function CoverGenerator({ project, chapters = [], onUpdate }) {
       </div>
 
       <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #2a2f3a' }}>
+        <h3 style={{ marginTop: 0 }}>4e de couverture — Verso</h3>
+
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 20 }}>
+          {project.back_cover_image_url && (
+            <div style={{ flexShrink: 0 }}>
+              <img
+                src={project.back_cover_image_url}
+                alt="Fond de 4e de couverture généré"
+                style={{ width: 180, borderRadius: 8, border: '1px solid #2a2f3a', display: 'block' }}
+              />
+              <a
+                href={project.back_cover_image_url}
+                download={`${safeName}_couverture_verso.png`}
+                style={{ fontSize: 12, color: '#d4a95a', display: 'block', marginTop: 8, textAlign: 'center' }}
+              >
+                Télécharger
+              </a>
+            </div>
+          )}
+
+          <div style={{ flex: 1, minWidth: 260 }}>
+            <label style={{ marginTop: 0 }}>Prompt du fond visuel (en anglais)</label>
+            <textarea
+              value={backImagePrompt}
+              onChange={(e) => setBackImagePrompt(e.target.value)}
+              placeholder="Un fond sobre dans la même ambiance que le recto, pour poser le texte dessus."
+              style={{ minHeight: 100 }}
+            />
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="secondary" onClick={handleSuggestBackImagePrompt} disabled={backPromptLoading}>
+                {backPromptLoading ? 'Rédaction…' : 'Suggérer un prompt'}
+              </button>
+              <button onClick={handleGenerateBackImage} disabled={backImageLoading}>
+                {backImageLoading ? 'Génération…' : project.back_cover_image_url ? 'Régénérer' : "Générer l'image"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {error && <div className="error-box">{error}</div>}
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <h4 style={{ margin: 0 }}>4e de couverture</h4>
+          <h4 style={{ margin: 0 }}>Texte de la 4e de couverture</h4>
           <button className="secondary" onClick={handleGenerateBackCover} disabled={backCoverLoading}>
-            {backCoverLoading ? 'Rédaction…' : backCoverText ? 'Régénérer' : 'Générer la 4e de couverture'}
+            {backCoverLoading ? 'Rédaction…' : backCoverText ? 'Régénérer' : 'Générer le texte'}
           </button>
         </div>
 
