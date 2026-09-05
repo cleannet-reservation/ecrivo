@@ -24,12 +24,10 @@ export default async function handler(req, res) {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'dall-e-3',
+        model: 'gpt-image-2',
         prompt,
         n: 1,
-        size: '1024x1792',
-        quality: 'standard',
-        response_format: 'b64_json',
+        size: '1024x1536', // format portrait ~2:3, le plus proche d'un ratio couverture de livre
       }),
     });
 
@@ -40,8 +38,21 @@ export default async function handler(req, res) {
     }
 
     const data = await openaiRes.json();
-    const imageBase64 = data.data[0].b64_json;
-    const revisedPrompt = data.data[0].revised_prompt || prompt;
+    const item = data.data[0];
+    let imageBase64 = item.b64_json;
+
+    // Sécurité : si jamais l'API renvoie une URL au lieu du base64, on la télécharge nous-mêmes
+    if (!imageBase64 && item.url) {
+      const imgRes = await fetch(item.url);
+      const arrayBuffer = await imgRes.arrayBuffer();
+      imageBase64 = Buffer.from(arrayBuffer).toString('base64');
+    }
+
+    if (!imageBase64) {
+      return res.status(500).json({ error: "Réponse OpenAI inattendue : aucune image reçue." });
+    }
+
+    const revisedPrompt = item.revised_prompt || prompt;
 
     return res.status(200).json({ image_base64: imageBase64, revised_prompt: revisedPrompt });
   } catch (err) {
