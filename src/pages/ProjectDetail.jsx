@@ -73,7 +73,8 @@ export default function ProjectDetail() {
     setPlanLoading(true);
     setError('');
     try {
-      const res = await callApi('/api/generate-plan', {
+      const res = await callApi('/api/book-concept', {
+        action: 'plan',
         title: project.title,
         genre: project.genre,
         bookType: project.book_type,
@@ -125,7 +126,8 @@ export default function ProjectDetail() {
         ? Math.round((project.target_pages * 270) / project.target_chapters)
         : null;
 
-    const res = await callApi('/api/generate-chapter', {
+    const res = await callApi('/api/chapter-tools', {
+      action: 'chapter',
       bookTitle: project.title,
       genre: project.genre,
       bookType: project.book_type,
@@ -255,7 +257,8 @@ export default function ProjectDetail() {
         .map((c) => c.content.slice(0, 600))
         .join('\n\n---\n\n');
 
-      const res = await callApi('/api/generate-style', {
+      const res = await callApi('/api/chapter-tools', {
+        action: 'style',
         bookTitle: project.title,
         genre: project.genre,
         chapterExcerpts,
@@ -294,7 +297,8 @@ export default function ProjectDetail() {
         .join('\n\n')
         .slice(0, 12000); // on garde une taille raisonnable pour le prompt
 
-      const res = await callApi('/api/generate-continuity', {
+      const res = await callApi('/api/chapter-tools', {
+        action: 'continuity',
         bookTitle: project.title,
         genre: project.genre,
         chapterContents,

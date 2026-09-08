@@ -18,7 +18,8 @@ export default function CoverGenerator({ project, chapters = [], onUpdate }) {
   const [copied, setCopied] = useState(false);
 
   async function suggestPrompt(side) {
-    const res = await callApi('/api/generate-cover-prompt', {
+    const res = await callApi('/api/cover-tools', {
+      action: 'prompt',
       title: project.title,
       genre: project.genre,
       pitch: project.concept?.pitch || '',
@@ -35,7 +36,7 @@ export default function CoverGenerator({ project, chapters = [], onUpdate }) {
   }
 
   async function generateImage(promptText) {
-    const res = await callApi('/api/generate-cover', { prompt: promptText });
+    const res = await callApi('/api/cover-tools', { action: 'image', prompt: promptText });
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       throw new Error(errData.error || "Erreur lors de la génération de l'image.");
@@ -118,7 +119,8 @@ export default function CoverGenerator({ project, chapters = [], onUpdate }) {
     try {
       const chapterSummaries = chapters.map((c) => `${c.title}: ${c.summary}`).join('\n');
 
-      const res = await callApi('/api/generate-back-cover', {
+      const res = await callApi('/api/cover-tools', {
+        action: 'backcover',
         title: project.title,
         genre: project.genre,
         bookType: project.book_type,

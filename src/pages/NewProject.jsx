@@ -42,7 +42,7 @@ export default function NewProject() {
     setLoading(true);
     setIdeas(null);
     try {
-      const res = await callApi('/api/generate-ideas', { bookType, genre, theme });
+      const res = await callApi('/api/book-concept', { action: 'ideas', bookType, genre, theme });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || 'Erreur lors de la génération des idées.');
