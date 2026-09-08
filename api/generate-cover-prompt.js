@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { title, genre, pitch, bookType, side, frontCoverPrompt } = req.body;
+    const { title, genre, pitch, bookType, side, frontCoverPrompt, anthropicApiKey } = req.body;
 
     const system = `Tu es un directeur artistique spécialisé dans les couvertures de livres pour Amazon KDP. Tu écris des prompts en ANGLAIS pour des IA de génération d'image (DALL-E, Midjourney). Tu réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises markdown.`;
 
@@ -40,7 +40,7 @@ Réponds avec un JSON de cette forme exacte:
   "prompt": "le prompt complet en anglais, prêt à copier-coller"
 }`;
 
-    const text = await callClaude({ system, prompt, maxTokens: 1024 });
+    const text = await callClaude({ system, prompt, maxTokens: 1024, apiKey: anthropicApiKey });
     const parsed = extractJson(text);
     return res.status(200).json(parsed);
   } catch (err) {

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { callApi } from '../lib/apiClient';
 import { exportCarnetToDocx } from '../lib/exportCarnetDocx';
 import { exportCarnetToPdf } from '../lib/exportCarnetPdf';
 
@@ -28,17 +29,13 @@ export default function CarnetConfig({ project, onUpdate }) {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/generate-carnet-content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: project.title,
-          genre: project.genre,
-          theme,
-          concept: project.concept,
-          template,
-          numPages: Math.min(numPages, 60), // on limite le nombre de prompts uniques générés
-        }),
+      const res = await callApi('/api/generate-carnet-content', {
+        title: project.title,
+        genre: project.genre,
+        theme,
+        concept: project.concept,
+        template,
+        numPages: Math.min(numPages, 60), // on limite le nombre de prompts uniques générés
       });
       if (!res.ok) throw new Error('Erreur lors de la génération du contenu du carnet.');
       const data = await res.json();

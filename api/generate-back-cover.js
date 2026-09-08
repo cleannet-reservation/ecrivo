@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { title, genre, bookType, pitch, targetAudience, chapterSummaries } = req.body;
+    const { title, genre, bookType, pitch, targetAudience, chapterSummaries, anthropicApiKey } = req.body;
 
     const system = `Tu es un copywriter spécialisé dans les 4e de couverture de livres, pour le marché francophone (Amazon KDP). Tu écris un texte prêt à être imprimé au dos du livre, percutant, qui donne envie d'acheter sans dévoiler la fin. Tu réponds uniquement avec le texte final, sans titre, sans commentaire méta, sans balises markdown.`;
 
@@ -27,7 +27,7 @@ ${typeInstruction}
 
 Longueur: 120 à 200 mots. Ton engageant, phrases courtes et rythmées.`;
 
-    const content = await callClaude({ system, prompt, maxTokens: 1024 });
+    const content = await callClaude({ system, prompt, maxTokens: 1024, apiKey: anthropicApiKey });
     return res.status(200).json({ back_cover_text: content.trim() });
   } catch (err) {
     console.error(err);

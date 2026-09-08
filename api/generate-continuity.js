@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { bookTitle, genre, chapterContents } = req.body;
+    const { bookTitle, genre, chapterContents, anthropicApiKey } = req.body;
 
     const system = `Tu es un éditeur qui prépare la suite d'un roman. Tu analyses un livre terminé pour en extraire tout ce qui est nécessaire à la continuité d'une suite. Tu réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises markdown.`;
 
@@ -21,7 +21,7 @@ Analyse ce livre et prépare la suite. Réponds avec un JSON de cette forme exac
   "suggested_title": "Un titre suggéré pour ce tome suivant"
 }`;
 
-    const text = await callClaude({ system, prompt, maxTokens: 2048 });
+    const text = await callClaude({ system, prompt, maxTokens: 2048, apiKey: anthropicApiKey });
     const parsed = extractJson(text);
     return res.status(200).json(parsed);
   } catch (err) {

@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { bookType, genre, theme } = req.body;
+    const { bookType, genre, theme, anthropicApiKey } = req.body;
 
     const system = `Tu es un éditeur expérimenté spécialisé dans le marché Amazon KDP francophone. Tu génères des concepts de livres commercialement viables. Tu réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises markdown.`;
 
@@ -33,7 +33,7 @@ Réponds avec un JSON de cette forme exacte:
   ]
 }`;
 
-    const text = await callClaude({ system, prompt, maxTokens: 2048 });
+    const text = await callClaude({ system, prompt, maxTokens: 2048, apiKey: anthropicApiKey });
     const parsed = extractJson(text);
     return res.status(200).json(parsed);
   } catch (err) {

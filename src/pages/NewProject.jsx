@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { callApi } from '../lib/apiClient';
 
 export default function NewProject() {
   const navigate = useNavigate();
@@ -41,12 +42,11 @@ export default function NewProject() {
     setLoading(true);
     setIdeas(null);
     try {
-      const res = await fetch('/api/generate-ideas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookType, genre, theme }),
-      });
-      if (!res.ok) throw new Error('Erreur lors de la génération des idées.');
+      const res = await callApi('/api/generate-ideas', { bookType, genre, theme });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Erreur lors de la génération des idées.');
+      }
       const data = await res.json();
       setIdeas(data.ideas);
     } catch (err) {

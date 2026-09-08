@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { title, genre, theme, concept, template, numPages } = req.body;
+    const { title, genre, theme, concept, template, numPages, anthropicApiKey } = req.body;
 
     const templateInstruction = {
       prompted: `Génère ${numPages} prompts d'écriture courts et variés (une phrase chacun), adaptés à ce carnet. Ils peuvent se répéter avec des variations si le nombre est élevé, mais garde de la diversité sur les 20-30 premiers.`,
@@ -31,7 +31,7 @@ Réponds avec un JSON de cette forme exacte:
   "prompts": ["prompt ou titre 1", "prompt ou titre 2", "..."]
 }`;
 
-    const text = await callClaude({ system, prompt, maxTokens: 3072 });
+    const text = await callClaude({ system, prompt, maxTokens: 3072, apiKey: anthropicApiKey });
     const parsed = extractJson(text);
     return res.status(200).json(parsed);
   } catch (err) {

@@ -1,10 +1,11 @@
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-5';
 
-export async function callClaude({ system, prompt, maxTokens = 4096 }) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+export async function callClaude({ system, prompt, maxTokens = 4096, apiKey }) {
   if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY manquante dans les variables d\'environnement Vercel.');
+    throw new Error(
+      "Clé API Anthropic manquante. Configure ta clé dans Paramètres avant de générer du contenu."
+    );
   }
 
   const res = await fetch(ANTHROPIC_API_URL, {

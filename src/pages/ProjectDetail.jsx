@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { callApi } from '../lib/apiClient';
 import { exportProjectToDocx } from '../lib/exportDocx';
 import { exportProjectToPdf } from '../lib/exportPdf';
 import CarnetConfig from '../components/CarnetConfig.jsx';
@@ -72,18 +73,14 @@ export default function ProjectDetail() {
     setPlanLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/generate-plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: project.title,
-          genre: project.genre,
-          bookType: project.book_type,
-          concept: project.concept,
-          styleNotes: collection?.style_notes || '',
-          continuityNotes: project.continuity_notes || '',
-          numChapters: project.target_chapters || null,
-        }),
+      const res = await callApi('/api/generate-plan', {
+        title: project.title,
+        genre: project.genre,
+        bookType: project.book_type,
+        concept: project.concept,
+        styleNotes: collection?.style_notes || '',
+        continuityNotes: project.continuity_notes || '',
+        numChapters: project.target_chapters || null,
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -128,22 +125,21 @@ export default function ProjectDetail() {
         ? Math.round((project.target_pages * 270) / project.target_chapters)
         : null;
 
-    const res = await fetch('/api/generate-chapter', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        bookTitle: project.title,
-        genre: project.genre,
-        bookType: project.book_type,
-        chapterTitle: chapter.title,
-        chapterSummary: chapter.summary,
-        previousSummary,
-        styleNotes: collection?.style_notes || '',
-        continuityNotes: project.continuity_notes || '',
-        targetWords,
-      }),
+    const res = await callApi('/api/generate-chapter', {
+      bookTitle: project.title,
+      genre: project.genre,
+      bookType: project.book_type,
+      chapterTitle: chapter.title,
+      chapterSummary: chapter.summary,
+      previousSummary,
+      styleNotes: collection?.style_notes || '',
+      continuityNotes: project.continuity_notes || '',
+      targetWords,
     });
-    if (!res.ok) throw new Error('Erreur lors de la génération du chapitre.');
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Erreur lors de la génération du chapitre.');
+    }
     const data = await res.json();
     return data.content;
   }
@@ -259,17 +255,16 @@ export default function ProjectDetail() {
         .map((c) => c.content.slice(0, 600))
         .join('\n\n---\n\n');
 
-      const res = await fetch('/api/generate-style', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bookTitle: project.title,
-          genre: project.genre,
-          chapterExcerpts,
-          existingStyleNotes: collection?.style_notes || '',
-        }),
+      const res = await callApi('/api/generate-style', {
+        bookTitle: project.title,
+        genre: project.genre,
+        chapterExcerpts,
+        existingStyleNotes: collection?.style_notes || '',
       });
-      if (!res.ok) throw new Error("Erreur lors de l'extraction du style.");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Erreur lors de l'extraction du style.");
+      }
       const data = await res.json();
 
       if (collection) {
@@ -299,16 +294,15 @@ export default function ProjectDetail() {
         .join('\n\n')
         .slice(0, 12000); // on garde une taille raisonnable pour le prompt
 
-      const res = await fetch('/api/generate-continuity', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bookTitle: project.title,
-          genre: project.genre,
-          chapterContents,
-        }),
+      const res = await callApi('/api/generate-continuity', {
+        bookTitle: project.title,
+        genre: project.genre,
+        chapterContents,
       });
-      if (!res.ok) throw new Error('Erreur lors de l\'analyse du livre pour la suite.');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Erreur lors de l'analyse du livre pour la suite.");
+      }
       const data = await res.json();
 
       // S'assure que le livre est rattaché à une collection, pour que le style suive aussi
@@ -388,18 +382,17 @@ export default function ProjectDetail() {
         ? `Carnet avec ${project.carnet_config?.num_pages || ''} pages. Intro: ${project.carnet_config?.intro_text || ''}. Exemples de prompts: ${(project.carnet_config?.prompts || []).slice(0, 5).join(' / ')}`
         : chapters.map((c) => `${c.title}: ${c.summary}`).join('\n');
 
-      const res = await fetch('/api/generate-listing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: project.title,
-          genre: project.genre,
-          bookType: project.book_type,
-          concept: project.concept,
-          chapterSummaries,
-        }),
+      const res = await callApi('/api/generate-listing', {
+        title: project.title,
+        genre: project.genre,
+        bookType: project.book_type,
+        concept: project.concept,
+        chapterSummaries,
       });
-      if (!res.ok) throw new Error('Erreur lors de la génération de la fiche produit.');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Erreur lors de la génération de la fiche produit.');
+      }
       const data = await res.json();
 
       const { error: updateErr } = await supabase

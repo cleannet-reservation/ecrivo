@@ -4,16 +4,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { prompt } = req.body;
+    const { prompt, openaiApiKey } = req.body;
     if (!prompt || !prompt.trim()) {
       return res.status(400).json({ error: 'Le prompt est vide.' });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = openaiApiKey;
     if (!apiKey) {
-      return res.status(500).json({
-        error:
-          "OPENAI_API_KEY manquante dans les variables d'environnement Vercel. Ajoute-la dans Settings > Environment Variables (clé créée sur platform.openai.com/api-keys), puis redéploie.",
+      return res.status(400).json({
+        error: 'Clé API OpenAI manquante. Configure ta clé dans Paramètres avant de générer une image.',
       });
     }
 

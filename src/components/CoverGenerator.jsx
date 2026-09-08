@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { callApi } from '../lib/apiClient';
 
 export default function CoverGenerator({ project, chapters = [], onUpdate }) {
   const [prompt, setPrompt] = useState(project.cover_prompt || '');
@@ -17,17 +18,13 @@ export default function CoverGenerator({ project, chapters = [], onUpdate }) {
   const [copied, setCopied] = useState(false);
 
   async function suggestPrompt(side) {
-    const res = await fetch('/api/generate-cover-prompt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: project.title,
-        genre: project.genre,
-        pitch: project.concept?.pitch || '',
-        bookType: project.book_type,
-        side,
-        frontCoverPrompt: side === 'back' ? prompt : undefined,
-      }),
+    const res = await callApi('/api/generate-cover-prompt', {
+      title: project.title,
+      genre: project.genre,
+      pitch: project.concept?.pitch || '',
+      bookType: project.book_type,
+      side,
+      frontCoverPrompt: side === 'back' ? prompt : undefined,
     });
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
@@ -38,11 +35,7 @@ export default function CoverGenerator({ project, chapters = [], onUpdate }) {
   }
 
   async function generateImage(promptText) {
-    const res = await fetch('/api/generate-cover', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: promptText }),
-    });
+    const res = await callApi('/api/generate-cover', { prompt: promptText });
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       throw new Error(errData.error || "Erreur lors de la génération de l'image.");
@@ -125,17 +118,13 @@ export default function CoverGenerator({ project, chapters = [], onUpdate }) {
     try {
       const chapterSummaries = chapters.map((c) => `${c.title}: ${c.summary}`).join('\n');
 
-      const res = await fetch('/api/generate-back-cover', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: project.title,
-          genre: project.genre,
-          bookType: project.book_type,
-          pitch: project.concept?.pitch || '',
-          targetAudience: project.concept?.target_audience || '',
-          chapterSummaries,
-        }),
+      const res = await callApi('/api/generate-back-cover', {
+        title: project.title,
+        genre: project.genre,
+        bookType: project.book_type,
+        pitch: project.concept?.pitch || '',
+        targetAudience: project.concept?.target_audience || '',
+        chapterSummaries,
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));

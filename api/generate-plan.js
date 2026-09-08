@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { title, genre, bookType, concept, styleNotes, continuityNotes, numChapters } = req.body;
+    const { title, genre, bookType, concept, styleNotes, continuityNotes, numChapters, anthropicApiKey } = req.body;
 
     const system = `Tu es un éditeur et structurologue de livres. Tu réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises markdown.`;
 
@@ -43,6 +43,7 @@ ${chapterCountInstruction} Réponds avec un JSON de cette forme exacte:
       system,
       prompt,
       maxTokens: numChapters ? Math.min(8000, 1800 + numChapters * 200) : 3072,
+      apiKey: anthropicApiKey,
     });
     const parsed = extractJson(text);
     return res.status(200).json(parsed);

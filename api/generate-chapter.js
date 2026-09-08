@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { bookTitle, genre, bookType, chapterTitle, chapterSummary, previousSummary, styleNotes, continuityNotes, targetWords } = req.body;
+    const { bookTitle, genre, bookType, chapterTitle, chapterSummary, previousSummary, styleNotes, continuityNotes, targetWords, anthropicApiKey } = req.body;
 
     const system = `Tu es un auteur professionnel écrivant en français pour le marché Amazon KDP. Tu écris un texte fluide, engageant, sans jamais mentionner que le contenu est généré par IA. Tu réponds uniquement avec le texte du chapitre, sans titre répété, sans commentaire méta, sans balises markdown.`;
 
@@ -28,7 +28,7 @@ ${typeInstruction}
 
 ${lengthInstruction}`;
 
-    const content = await callClaude({ system, prompt, maxTokens: 6144 });
+    const content = await callClaude({ system, prompt, maxTokens: 6144, apiKey: anthropicApiKey });
     return res.status(200).json({ content: content.trim() });
   } catch (err) {
     console.error(err);
