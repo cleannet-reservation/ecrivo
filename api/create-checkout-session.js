@@ -31,11 +31,12 @@ export default async function handler(req, res) {
     const origin = req.headers.origin || `https://${req.headers.host}`;
 
     const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
+      mode: 'payment',
       line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
       customer_email: user.email,
       client_reference_id: user.id,
       metadata: { user_id: user.id },
+      invoice_creation: { enabled: true }, // pour que le client ait une facture téléchargeable
       success_url: `${origin}/?checkout=success`,
       cancel_url: `${origin}/?checkout=cancel`,
     });

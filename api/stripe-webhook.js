@@ -49,30 +49,15 @@ export default async function handler(req, res) {
         const userId = session.metadata?.user_id || session.client_reference_id;
         if (!userId) break;
 
-        const subscription = await stripe.subscriptions.retrieve(session.subscription);
-
+        // Paiement unique : un paiement réussi donne un accès à vie, pas de renouvellement à suivre.
         await supabaseAdmin.from('subscriptions').upsert({
           user_id: userId,
           stripe_customer_id: session.customer,
-          stripe_subscription_id: subscription.id,
-          status: subscription.status,
-          current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+          stripe_subscription_id: null,
+          status: 'active',
+          current_period_end: null, // null = accès à vie, pas de date d'expiration
           updated_at: new Date().toISOString(),
         });
-        break;
-      }
-
-      case 'customer.subscription.updated':
-      case 'customer.subscription.deleted': {
-        const subscription = event.data.object;
-        await supabaseAdmin
-          .from('subscriptions')
-          .update({
-            status: subscription.status,
-            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('stripe_subscription_id', subscription.id);
         break;
       }
 

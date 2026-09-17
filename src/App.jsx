@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/AuthContext.jsx';
-import { supabase } from './lib/supabase';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import NewProject from './pages/NewProject.jsx';
@@ -27,23 +26,6 @@ function Protected({ children }) {
 function Shell({ children }) {
   const { signOut } = useAuth();
   const location = useLocation();
-  const [portalLoading, setPortalLoading] = useState(false);
-
-  async function handleManageSubscription() {
-    setPortalLoading(true);
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-      const res = await fetch('/api/create-portal-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.url) window.location.href = data.url;
-    } finally {
-      setPortalLoading(false);
-    }
-  }
 
   return (
     <div className="app-shell">
@@ -59,9 +41,6 @@ function Shell({ children }) {
           Paramètres
         </Link>
         <div style={{ flex: 1 }} />
-        <button className="secondary" onClick={handleManageSubscription} disabled={portalLoading}>
-          {portalLoading ? 'Ouverture…' : 'Gérer mon abonnement'}
-        </button>
         <button className="secondary" onClick={signOut}>
           Déconnexion
         </button>
