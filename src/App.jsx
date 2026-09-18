@@ -7,6 +7,7 @@ import NewProject from './pages/NewProject.jsx';
 import ProjectDetail from './pages/ProjectDetail.jsx';
 import Paywall from './pages/Paywall.jsx';
 import Settings from './pages/Settings.jsx';
+import Admin from './pages/Admin.jsx';
 
 function Protected({ children }) {
   const { session, subscription, hasActiveSubscription } = useAuth();
@@ -39,6 +40,13 @@ function Shell({ children }) {
         </Link>
         <Link to="/settings" className={location.pathname === '/settings' ? 'active' : ''}>
           Paramètres
+        </Link>
+        <Link
+          to="/admin"
+          className={location.pathname === '/admin' ? 'active' : ''}
+          style={{ fontSize: 12, opacity: 0.6 }}
+        >
+          Admin
         </Link>
         <div style={{ flex: 1 }} />
         <button className="secondary" onClick={signOut}>
@@ -91,6 +99,16 @@ export default function App() {
             <Protected>
               <Shell>
                 <Settings />
+              </Shell>
+            </Protected>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <Protected>
+              <Shell>
+                <Admin />
               </Shell>
             </Protected>
           }
