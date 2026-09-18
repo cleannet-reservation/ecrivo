@@ -36,6 +36,21 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: "Accès réservé aux administrateurs." });
     }
 
+    const { action, userId } = req.body;
+
+    if (action === 'user-projects') {
+      if (!userId) return res.status(400).json({ error: 'userId manquant.' });
+
+      const { data: userProjects, error: projErr } = await supabaseAdmin
+        .from('book_projects')
+        .select('id, title, genre, book_type, status, target_pages, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+      if (projErr) throw projErr;
+
+      return res.status(200).json({ projects: userProjects || [] });
+    }
+
     // Liste de tous les comptes utilisateurs (nécessite la clé service_role)
     const { data: usersData, error: usersErr } = await supabaseAdmin.auth.admin.listUsers({
       perPage: 1000,
