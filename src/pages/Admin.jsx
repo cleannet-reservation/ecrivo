@@ -15,6 +15,7 @@ export default function Admin() {
   const [creatingTrial, setCreatingTrial] = useState(false);
   const [newTrialUrl, setNewTrialUrl] = useState('');
   const [copiedTrial, setCopiedTrial] = useState(false);
+  const [deletingUser, setDeletingUser] = useState(null);
 
   useEffect(() => {
     load();
@@ -126,6 +127,31 @@ export default function Admin() {
     navigator.clipboard.writeText(newTrialUrl);
     setCopiedTrial(true);
     setTimeout(() => setCopiedTrial(false), 1500);
+  }
+
+  async function handleDeleteUser(u, e) {
+    e.stopPropagation(); // évite de déplier la ligne en même temps
+    const confirmed = window.confirm(
+      `Supprimer définitivement le compte ${u.email} et tous ses livres (${u.project_count} projet(s)) ? Cette action est irréversible.`
+    );
+    if (!confirmed) return;
+
+    setDeletingUser(u.id);
+    try {
+      const token = await getToken();
+      const res = await fetch('/api/admin-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'delete-user', userId: u.id }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Erreur lors de la suppression.');
+      load();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setDeletingUser(null);
+    }
   }
 
   if (loading) return <p className="spinner-text">Chargement…</p>;
@@ -260,6 +286,7 @@ export default function Admin() {
                 <th style={{ padding: '8px 10px' }}>Clé Anthropic</th>
                 <th style={{ padding: '8px 10px' }}>Clé OpenAI</th>
                 <th style={{ padding: '8px 10px' }}>Livres créés</th>
+                <th style={{ padding: '8px 10px' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -281,10 +308,20 @@ export default function Admin() {
                     <td style={{ padding: '8px 10px' }}>{u.has_anthropic_key ? '✓' : '—'}</td>
                     <td style={{ padding: '8px 10px' }}>{u.has_openai_key ? '✓' : '—'}</td>
                     <td style={{ padding: '8px 10px' }}>{u.project_count}</td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <button
+                        className="danger"
+                        style={{ padding: '5px 12px', fontSize: 12, marginTop: 0 }}
+                        onClick={(e) => handleDeleteUser(u, e)}
+                        disabled={deletingUser === u.id}
+                      >
+                        {deletingUser === u.id ? '…' : 'Supprimer'}
+                      </button>
+                    </td>
                   </tr>
                   {expandedUser === u.id && (
                     <tr>
-                      <td colSpan={6} style={{ padding: '4px 10px 16px 10px', background: '#171a21' }}>
+                      <td colSpan={7} style={{ padding: '4px 10px 16px 10px', background: '#171a21' }}>
                         {projectsLoading === u.id && (
                           <p style={{ color: '#9aa0ac', fontSize: 13 }}>Chargement des projets…</p>
                         )}

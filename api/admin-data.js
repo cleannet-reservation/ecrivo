@@ -80,6 +80,18 @@ export default async function handler(req, res) {
       return res.status(200).json({ granted: true, alreadyHadAccount: false });
     }
 
+    if (action === 'delete-user') {
+      if (!userId) return res.status(400).json({ error: 'userId manquant.' });
+      if (userId === userData.user.id) {
+        return res.status(400).json({ error: 'Tu ne peux pas supprimer ton propre compte depuis ici.' });
+      }
+
+      const { error: deleteErr } = await supabaseAdmin.auth.admin.deleteUser(userId);
+      if (deleteErr) throw deleteErr;
+
+      return res.status(200).json({ deleted: true });
+    }
+
     if (action === 'create-trial-link') {
       const newToken =
         Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
