@@ -21,8 +21,12 @@ export default function Paywall() {
   const justPaid = new URLSearchParams(window.location.search).get('checkout') === 'success';
   const priceStillCurrent = new Date() < PRICE_INCREASE_DATE;
 
+  const [checkingTrial, setCheckingTrial] = useState(false);
+  const [trialMessage, setTrialMessage] = useState('');
+
   useEffect(() => {
     checkGrantedAccess();
+    checkTrialLink();
   }, []);
 
   async function checkGrantedAccess() {
@@ -42,6 +46,38 @@ export default function Paywall() {
       }
     } catch (err) {
       // Silencieux : si la vérification échoue, l'utilisateur voit simplement l'écran de paiement normal.
+    }
+  }
+
+  async function checkTrialLink() {
+    const trialToken = localStorage.getItem('ecrivo_trial_token');
+    if (!trialToken) return;
+
+    setCheckingTrial(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) return;
+
+      const res = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'claim-trial', trialToken }),
+      });
+      const data = await res.json();
+      localStorage.removeItem('ecrivo_trial_token');
+
+      if (data.granted) {
+        await refreshSubscription();
+      } else if (data.reason === 'already_used') {
+        setTrialMessage("Ce lien d'essai a déjà été utilisé.");
+      } else if (data.reason === 'invalid') {
+        setTrialMessage("Ce lien d'essai n'est plus valide.");
+      }
+    } catch (err) {
+      // Silencieux
+    } finally {
+      setCheckingTrial(false);
     }
   }
 
@@ -78,6 +114,9 @@ export default function Paywall() {
     <div className="center-screen">
       <div className="auth-box" style={{ width: 420 }}>
         <h2 style={{ color: '#d4a95a', marginTop: 0 }}>Écrivo</h2>
+
+        {checkingTrial && <p style={{ fontSize: 13, color: '#9aa0ac' }}>Vérification de ton lien d'essai…</p>}
+        {trialMessage && <div className="error-box">{trialMessage}</div>}
 
         {justPaid ? (
           <>

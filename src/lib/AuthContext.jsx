@@ -46,7 +46,10 @@ export function AuthProvider({ children }) {
 
   const refreshSubscription = () => loadSubscription(session);
 
-  const hasActiveSubscription = subscription ? ACTIVE_STATUSES.includes(subscription.status) : false;
+  const hasActiveSubscription = subscription
+    ? ACTIVE_STATUSES.includes(subscription.status) &&
+      (!subscription.current_period_end || new Date(subscription.current_period_end) > new Date())
+    : false;
 
   return (
     <AuthContext.Provider

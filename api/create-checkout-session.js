@@ -49,6 +49,46 @@ export default async function handler(req, res) {
       return res.status(200).json({ granted: true });
     }
 
+    // Réclame un lien d'essai de 24h (créé depuis l'admin) — utilisable une seule fois.
+    if (req.body.action === 'claim-trial') {
+      const { trialToken } = req.body;
+      if (!trialToken) return res.status(400).json({ error: 'trialToken manquant.' });
+
+      const supabaseAdmin = createClient(
+        process.env.VITE_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      );
+
+      const { data: link } = await supabaseAdmin
+        .from('trial_links')
+        .select('token, claimed_by')
+        .eq('token', trialToken)
+        .maybeSingle();
+
+      if (!link) {
+        return res.status(200).json({ granted: false, reason: 'invalid' });
+      }
+      if (link.claimed_by) {
+        return res.status(200).json({ granted: false, reason: 'already_used' });
+      }
+
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+      await supabaseAdmin.from('subscriptions').upsert({
+        user_id: user.id,
+        status: 'trialing',
+        current_period_end: expiresAt,
+        updated_at: new Date().toISOString(),
+      });
+
+      await supabaseAdmin
+        .from('trial_links')
+        .update({ claimed_by: user.id, claimed_at: new Date().toISOString() })
+        .eq('token', trialToken);
+
+      return res.status(200).json({ granted: true, expiresAt });
+    }
+
     if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_PRICE_ID) {
       return res.status(500).json({
         error:

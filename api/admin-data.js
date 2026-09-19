@@ -80,6 +80,16 @@ export default async function handler(req, res) {
       return res.status(200).json({ granted: true, alreadyHadAccount: false });
     }
 
+    if (action === 'create-trial-link') {
+      const newToken =
+        Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+
+      const { error: insertErr } = await supabaseAdmin.from('trial_links').insert({ token: newToken });
+      if (insertErr) throw insertErr;
+
+      return res.status(200).json({ token: newToken });
+    }
+
     // Liste de tous les comptes utilisateurs (nécessite la clé service_role)
     const { data: usersData, error: usersErr } = await supabaseAdmin.auth.admin.listUsers({
       perPage: 1000,
@@ -97,6 +107,11 @@ export default async function handler(req, res) {
     const { data: projects } = await supabaseAdmin
       .from('book_projects')
       .select('user_id');
+
+    const { data: trialLinksRaw } = await supabaseAdmin
+      .from('trial_links')
+      .select('token, created_at, claimed_by, claimed_at')
+      .order('created_at', { ascending: false });
 
     const subByUser = Object.fromEntries((subscriptions || []).map((s) => [s.user_id, s]));
     const keysByUser = Object.fromEntries((apiKeys || []).map((k) => [k.user_id, k]));
@@ -120,7 +135,15 @@ export default async function handler(req, res) {
 
     const paidCount = users.filter((u) => ['active', 'trialing'].includes(u.subscription_status)).length;
 
-    return res.status(200).json({ users, totalUsers: users.length, paidCount });
+    const emailById = Object.fromEntries(usersData.users.map((u) => [u.id, u.email]));
+    const trialLinks = (trialLinksRaw || []).map((t) => ({
+      token: t.token,
+      created_at: t.created_at,
+      claimed_by_email: t.claimed_by ? emailById[t.claimed_by] || null : null,
+      claimed_at: t.claimed_at,
+    }));
+
+    return res.status(200).json({ users, totalUsers: users.length, paidCount, trialLinks });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: err.message });

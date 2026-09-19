@@ -12,6 +12,9 @@ export default function Admin() {
   const [grantNote, setGrantNote] = useState('');
   const [granting, setGranting] = useState(false);
   const [grantMessage, setGrantMessage] = useState('');
+  const [creatingTrial, setCreatingTrial] = useState(false);
+  const [newTrialUrl, setNewTrialUrl] = useState('');
+  const [copiedTrial, setCopiedTrial] = useState(false);
 
   useEffect(() => {
     load();
@@ -98,6 +101,33 @@ export default function Admin() {
     }
   }
 
+  async function handleCreateTrialLink() {
+    setCreatingTrial(true);
+    setNewTrialUrl('');
+    try {
+      const token = await getToken();
+      const res = await fetch('/api/admin-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'create-trial-link' }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Erreur lors de la création du lien.');
+      setNewTrialUrl(`${window.location.origin}/trial/${result.token}`);
+      load();
+    } catch (err) {
+      setGrantMessage(err.message);
+    } finally {
+      setCreatingTrial(false);
+    }
+  }
+
+  function copyTrialUrl() {
+    navigator.clipboard.writeText(newTrialUrl);
+    setCopiedTrial(true);
+    setTimeout(() => setCopiedTrial(false), 1500);
+  }
+
   if (loading) return <p className="spinner-text">Chargement…</p>;
 
   if (error) {
@@ -163,6 +193,56 @@ export default function Admin() {
         </form>
         {grantMessage && (
           <p style={{ fontSize: 13, color: '#9fd39a', marginTop: 12 }}>{grantMessage}</p>
+        )}
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Lien d'essai (24h)</h3>
+        <p style={{ fontSize: 13, color: '#9aa0ac' }}>
+          Génère un lien à usage unique. La première personne qui l'ouvre et crée un compte (ou se
+          connecte) obtient 24h d'accès complet, sans payer.
+        </p>
+        <button onClick={handleCreateTrialLink} disabled={creatingTrial}>
+          {creatingTrial ? 'Génération…' : "Créer un lien d'essai"}
+        </button>
+
+        {newTrialUrl && (
+          <div style={{ marginTop: 14, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input readOnly value={newTrialUrl} style={{ flex: 1, minWidth: 260 }} onFocus={(e) => e.target.select()} />
+            <button className="secondary" onClick={copyTrialUrl}>
+              {copiedTrial ? 'Copié !' : 'Copier'}
+            </button>
+          </div>
+        )}
+
+        {data.trialLinks && data.trialLinks.length > 0 && (
+          <div style={{ marginTop: 20 }}>
+            <label style={{ marginTop: 0 }}>Liens créés</label>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+              <thead>
+                <tr style={{ textAlign: 'left', color: '#9aa0ac' }}>
+                  <th style={{ padding: '4px 8px' }}>Créé le</th>
+                  <th style={{ padding: '4px 8px' }}>Statut</th>
+                  <th style={{ padding: '4px 8px' }}>Utilisé par</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.trialLinks.map((t) => (
+                  <tr key={t.token}>
+                    <td style={{ padding: '4px 8px', color: '#9aa0ac' }}>
+                      {new Date(t.created_at).toLocaleString('fr-FR')}
+                    </td>
+                    <td style={{ padding: '4px 8px' }}>
+                      <span className={`badge ${t.claimed_by_email ? 'done' : ''}`}>
+                        {t.claimed_by_email ? 'Utilisé' : 'Disponible'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '4px 8px', color: '#9aa0ac' }}>{t.claimed_by_email || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
