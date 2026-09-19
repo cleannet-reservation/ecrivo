@@ -7,13 +7,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_PRICE_ID) {
-      return res.status(500).json({
-        error:
-          "Stripe n'est pas configuré côté serveur (STRIPE_SECRET_KEY / STRIPE_PRICE_ID manquants dans Vercel).",
-      });
-    }
-
     const authHeader = req.headers.authorization || '';
     const token = authHeader.replace('Bearer ', '');
     if (!token) {
@@ -26,6 +19,42 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Session invalide, reconnecte-toi.' });
     }
     const user = userData.user;
+
+    // Vérifie discrètement si cette personne a reçu un accès offert (par email) avant de
+    // proposer le paiement — si oui, on débloque directement sans passer par Stripe.
+    if (req.body.action === 'claim') {
+      const supabaseAdmin = createClient(
+        process.env.VITE_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      );
+
+      const { data: grant } = await supabaseAdmin
+        .from('granted_emails')
+        .select('email')
+        .eq('email', user.email.toLowerCase())
+        .maybeSingle();
+
+      if (!grant) {
+        return res.status(200).json({ granted: false });
+      }
+
+      await supabaseAdmin.from('subscriptions').upsert({
+        user_id: user.id,
+        status: 'active',
+        current_period_end: null,
+        updated_at: new Date().toISOString(),
+      });
+      await supabaseAdmin.from('granted_emails').delete().eq('email', user.email.toLowerCase());
+
+      return res.status(200).json({ granted: true });
+    }
+
+    if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_PRICE_ID) {
+      return res.status(500).json({
+        error:
+          "Stripe n'est pas configuré côté serveur (STRIPE_SECRET_KEY / STRIPE_PRICE_ID manquants dans Vercel).",
+      });
+    }
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
     const origin = req.headers.origin || `https://${req.headers.host}`;

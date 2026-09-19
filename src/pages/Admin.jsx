@@ -8,6 +8,10 @@ export default function Admin() {
   const [expandedUser, setExpandedUser] = useState(null);
   const [projectsByUser, setProjectsByUser] = useState({});
   const [projectsLoading, setProjectsLoading] = useState(null);
+  const [grantEmail, setGrantEmail] = useState('');
+  const [grantNote, setGrantNote] = useState('');
+  const [granting, setGranting] = useState(false);
+  const [grantMessage, setGrantMessage] = useState('');
 
   useEffect(() => {
     load();
@@ -64,6 +68,36 @@ export default function Admin() {
     }
   }
 
+  async function handleGrantAccess(e) {
+    e.preventDefault();
+    if (!grantEmail.trim()) return;
+    setGranting(true);
+    setGrantMessage('');
+    try {
+      const token = await getToken();
+      const res = await fetch('/api/admin-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'grant-email', email: grantEmail, note: grantNote }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Erreur lors de l'octroi de l'accès.");
+
+      setGrantMessage(
+        result.alreadyHadAccount
+          ? `Accès débloqué immédiatement pour ${grantEmail} (compte déjà existant).`
+          : `${grantEmail} aura accès automatiquement dès son inscription.`
+      );
+      setGrantEmail('');
+      setGrantNote('');
+      load();
+    } catch (err) {
+      setGrantMessage(err.message);
+    } finally {
+      setGranting(false);
+    }
+  }
+
   if (loading) return <p className="spinner-text">Chargement…</p>;
 
   if (error) {
@@ -95,6 +129,41 @@ export default function Admin() {
           <p style={{ color: '#9aa0ac', fontSize: 13, margin: '0 0 6px 0' }}>Revenu estimé (à 69€)</p>
           <p style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>{data.paidCount * 69}€</p>
         </div>
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Offrir un accès</h3>
+        <p style={{ fontSize: 13, color: '#9aa0ac' }}>
+          Utile pour des bêta-testeurs ou des accès offerts, comme sur BookPro. Si la personne a
+          déjà un compte Écrivo, son accès se débloque immédiatement. Sinon, il se débloquera tout
+          seul dès qu'elle créera son compte avec cet email.
+        </p>
+        <form onSubmit={handleGrantAccess} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <label style={{ marginTop: 0 }}>Email</label>
+            <input
+              type="email"
+              value={grantEmail}
+              onChange={(e) => setGrantEmail(e.target.value)}
+              placeholder="exemple@mail.com"
+              required
+            />
+          </div>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <label style={{ marginTop: 0 }}>Note (optionnel)</label>
+            <input
+              value={grantNote}
+              onChange={(e) => setGrantNote(e.target.value)}
+              placeholder="ex: bêta-testeur, ami..."
+            />
+          </div>
+          <button type="submit" disabled={granting} style={{ marginTop: 0 }}>
+            {granting ? 'Envoi…' : "Offrir l'accès à vie"}
+          </button>
+        </form>
+        {grantMessage && (
+          <p style={{ fontSize: 13, color: '#9fd39a', marginTop: 12 }}>{grantMessage}</p>
+        )}
       </div>
 
       <div className="card">

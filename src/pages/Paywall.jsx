@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 
@@ -20,6 +20,30 @@ export default function Paywall() {
 
   const justPaid = new URLSearchParams(window.location.search).get('checkout') === 'success';
   const priceStillCurrent = new Date() < PRICE_INCREASE_DATE;
+
+  useEffect(() => {
+    checkGrantedAccess();
+  }, []);
+
+  async function checkGrantedAccess() {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) return;
+
+      const res = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'claim' }),
+      });
+      const data = await res.json();
+      if (data.granted) {
+        await refreshSubscription();
+      }
+    } catch (err) {
+      // Silencieux : si la vérification échoue, l'utilisateur voit simplement l'écran de paiement normal.
+    }
+  }
 
   async function handleSubscribe() {
     setLoading(true);

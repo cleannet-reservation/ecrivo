@@ -36,7 +36,7 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: "Accès réservé aux administrateurs." });
     }
 
-    const { action, userId } = req.body;
+    const { action, userId, email, note } = req.body;
 
     if (action === 'user-projects') {
       if (!userId) return res.status(400).json({ error: 'userId manquant.' });
@@ -49,6 +49,35 @@ export default async function handler(req, res) {
       if (projErr) throw projErr;
 
       return res.status(200).json({ projects: userProjects || [] });
+    }
+
+    if (action === 'grant-email') {
+      if (!email || !email.trim()) return res.status(400).json({ error: 'Email manquant.' });
+      const cleanEmail = email.trim().toLowerCase();
+
+      const { error: grantErr } = await supabaseAdmin
+        .from('granted_emails')
+        .upsert({ email: cleanEmail, note: note || null });
+      if (grantErr) throw grantErr;
+
+      // Si la personne a déjà un compte, on lui donne l'accès tout de suite,
+      // sans attendre qu'elle se reconnecte.
+      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+      const matchedUser = existingUsers?.users.find(
+        (u) => u.email?.toLowerCase() === cleanEmail
+      );
+
+      if (matchedUser) {
+        await supabaseAdmin.from('subscriptions').upsert({
+          user_id: matchedUser.id,
+          status: 'active',
+          current_period_end: null,
+          updated_at: new Date().toISOString(),
+        });
+        return res.status(200).json({ granted: true, alreadyHadAccount: true });
+      }
+
+      return res.status(200).json({ granted: true, alreadyHadAccount: false });
     }
 
     // Liste de tous les comptes utilisateurs (nécessite la clé service_role)
