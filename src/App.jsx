@@ -9,6 +9,7 @@ import Paywall from './pages/Paywall.jsx';
 import Settings from './pages/Settings.jsx';
 import Admin from './pages/Admin.jsx';
 import TrialEntry from './pages/TrialEntry.jsx';
+import ResetPassword from './pages/ResetPassword.jsx';
 
 function Protected({ children }) {
   const { session, subscription, hasActiveSubscription } = useAuth();
@@ -65,6 +66,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/trial/:token" element={<TrialEntry />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route
           path="/"
           element={
